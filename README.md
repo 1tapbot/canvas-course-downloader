@@ -5,7 +5,8 @@
 <h1 align="center">Canvas Course Downloader</h1>
 
 <p align="center">
-  <strong>A Chrome extension that bulk-downloads everything from your Canvas LMS courses with one click.</strong>
+  <strong>A browser extension that bulk-downloads everything from your Canvas LMS courses with one click.</strong><br>
+  <sub>Works on Chrome, Edge, Firefox, Brave, and all Chromium-based browsers.</sub>
 </p>
 
 <p align="center">
@@ -24,7 +25,7 @@ When a semester ends, your Canvas courses can disappear. Downloading files one b
 
 ## The Solution
 
-**Canvas Course Downloader** is a zero-config Chrome extension. Navigate to Canvas, click a button, and every file, page, assignment, announcement, discussion, module, and syllabus gets downloaded into neatly organized folders. No API keys. No setup. It just works.
+**Canvas Course Downloader** is a zero-config browser extension for Chrome, Edge, Firefox, and Brave. Navigate to Canvas, click a button, and every file, page, assignment, announcement, discussion, module, and syllabus gets downloaded into neatly organized folders. No API keys. No setup. It just works.
 
 ## Features
 
@@ -50,20 +51,30 @@ Select which courses to download directly from your Canvas dashboard:
 
 ## Installation
 
-### From Source (Developer Mode)
+### Chrome / Edge / Brave (Developer Mode)
 
 1. Clone this repository:
    ```bash
    git clone https://github.com/jasp-nerd/canvas-course-downloader.git
    ```
-2. Open Chrome and navigate to `chrome://extensions`
+2. Open your browser's extension page:
+   - **Chrome:** `chrome://extensions`
+   - **Edge:** `edge://extensions`
+   - **Brave:** `brave://extensions`
 3. Enable **Developer mode** (toggle in the top-right corner)
 4. Click **Load unpacked** and select the cloned folder
 5. Navigate to your Canvas LMS site — the extension is ready to use
 
-### From Chrome Web Store
+### Firefox (Developer Mode)
 
-*Coming soon.*
+1. Clone this repository
+2. Open `about:debugging#/runtime/this-firefox`
+3. Click **Load Temporary Add-on** and select the `manifest.json` file
+4. Navigate to your Canvas LMS site
+
+### Web Stores
+
+*Coming soon for Chrome Web Store and Firefox Add-ons.*
 
 ## Usage
 
@@ -97,7 +108,7 @@ Select which courses to download directly from your Canvas dashboard:
 
 ```
 canvas-course-downloader/
-├── manifest.json      # Chrome extension manifest (MV3)
+├── manifest.json      # Extension manifest (MV3 — Chrome, Edge, Firefox)
 ├── content.js         # Content script — Canvas detection, API calls, UI overlay
 ├── background.js      # Service worker — sequential download queue
 ├── popup.html         # Extension popup UI
@@ -118,8 +129,7 @@ canvas-course-downloader/
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Some ideas for contributions:
-- Chrome Web Store listing
-- Firefox / Edge support
+- Chrome Web Store / Firefox Add-ons listing
 - Download progress notifications
 - Configurable download options (e.g., skip certain content types)
 - Improved file deduplication
