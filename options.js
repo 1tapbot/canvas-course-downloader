@@ -13,30 +13,36 @@ const DEFAULTS = {
     announcements: true,
     modules: true,
     syllabus: true,
+    grades: true,
     linkedFiles: true,
   },
   conflictAction: "uniquify",
   throttleMs: 250,
   folderPrefix: "",
+  incrementalMode: false,
   preset: "full-archive",
 };
 
 const PRESETS = {
   "full-archive": {
     files: true, pages: true, assignments: true, discussions: true,
-    announcements: true, modules: true, syllabus: true, linkedFiles: true,
+    announcements: true, modules: true, syllabus: true, grades: true,
+    linkedFiles: true,
   },
   "files-only": {
     files: true, pages: false, assignments: false, discussions: false,
-    announcements: false, modules: false, syllabus: false, linkedFiles: false,
+    announcements: false, modules: false, syllabus: false, grades: false,
+    linkedFiles: false,
   },
   "text-only": {
     files: false, pages: true, assignments: true, discussions: true,
-    announcements: true, modules: true, syllabus: true, linkedFiles: false,
+    announcements: true, modules: true, syllabus: true, grades: true,
+    linkedFiles: false,
   },
   "linked-only": {
     files: false, pages: false, assignments: false, discussions: false,
-    announcements: false, modules: false, syllabus: false, linkedFiles: true,
+    announcements: false, modules: false, syllabus: false, grades: false,
+    linkedFiles: true,
   },
 };
 
@@ -81,6 +87,7 @@ function loadSettings() {
     document.getElementById("conflict").value = settings.conflictAction;
     document.getElementById("throttle").value = settings.throttleMs;
     document.getElementById("folder-prefix").value = settings.folderPrefix;
+    document.getElementById("incremental-mode").checked = settings.incrementalMode;
 
     // Preset highlight
     const preset = detectPreset();
@@ -97,6 +104,7 @@ function saveSettings() {
     conflictAction: document.getElementById("conflict").value,
     throttleMs: parseInt(document.getElementById("throttle").value, 10) || 250,
     folderPrefix: document.getElementById("folder-prefix").value.trim(),
+    incrementalMode: document.getElementById("incremental-mode").checked,
     preset: detectPreset(),
   };
 

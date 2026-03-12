@@ -314,11 +314,13 @@ async function fetchAllCourses() {
 const SETTING_DEFAULTS = {
   contentTypes: {
     files: true, pages: true, assignments: true, discussions: true,
-    announcements: true, modules: true, syllabus: true, linkedFiles: true,
+    announcements: true, modules: true, syllabus: true, grades: true,
+    linkedFiles: true,
   },
   conflictAction: "uniquify",
   throttleMs: 250,
   folderPrefix: "",
+  incrementalMode: false,
   preset: "full-archive",
 };
 
@@ -576,6 +578,69 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
     }
   }
 
+  // --- Grades ----------------------------------------------------------------
+  if (types.grades) {
+    log("Fetching grades...");
+    try {
+      const gradeAssignments = await fetchAllPages(
+        api("assignments?per_page=100&include[]=submission")
+      );
+      if (gradeAssignments.length > 0) {
+        const csvRows = ["Assignment,Due Date,Points Possible,Score,Grade"];
+        for (const a of gradeAssignments) {
+          const name = (a.name || "").replace(/"/g, '""');
+          const due = a.due_at ? new Date(a.due_at).toLocaleDateString() : "";
+          const possible = a.points_possible ?? "";
+          const score = a.submission?.score ?? "";
+          const grade = a.submission?.grade ?? "";
+          csvRows.push(`"${name}","${due}",${possible},${score},"${grade}"`);
+        }
+        filesToDownload.push({
+          url: `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.join("\n"))}`,
+          filename: "Grades.csv",
+          path: "",
+        });
+      }
+    } catch (err) {
+      console.error("[Canvas Downloader] Grades error:", err);
+    }
+  }
+
+  // --- Incremental mode: filter out unchanged files --------------------------
+  let skippedCount = 0;
+  if (settings.incrementalMode) {
+    const storageKey = `incremental_${courseId}`;
+    const stored = await new Promise((r) => chrome.storage.local.get(storageKey, (d) => r(d[storageKey] || {})));
+
+    const filtered = [];
+    for (const file of filesToDownload) {
+      // Only apply incremental logic to real file downloads (not data URIs)
+      if (!file.url.startsWith("data:")) {
+        const fileKey = file.path + file.filename;
+        if (stored[fileKey]) {
+          skippedCount++;
+          continue;
+        }
+      }
+      filtered.push(file);
+    }
+
+    // Store the current file set for next time (after download starts)
+    const newRecord = {};
+    for (const file of filesToDownload) {
+      if (!file.url.startsWith("data:")) {
+        newRecord[file.path + file.filename] = Date.now();
+      }
+    }
+    chrome.storage.local.set({ [storageKey]: newRecord });
+
+    if (skippedCount > 0) {
+      log(`Incremental mode: skipping ${skippedCount} previously downloaded files.`);
+    }
+    filesToDownload.length = 0;
+    filesToDownload.push(...filtered);
+  }
+
   // --- Export manifest -------------------------------------------------------
   const manifest = {
     course: courseName,
@@ -591,6 +656,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
       discussions: discussions.length,
       modules: modules.length,
       extractedFiles: filesToDownload.filter((f) => f.path === "Extracted_Files/").length,
+      skippedIncremental: skippedCount,
       total: filesToDownload.length,
     },
   };

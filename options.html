@@ -84,6 +84,7 @@
       <label><input type="checkbox" data-key="announcements"> Announcements</label>
       <label><input type="checkbox" data-key="modules"> Modules</label>
       <label><input type="checkbox" data-key="syllabus"> Syllabus</label>
+      <label><input type="checkbox" data-key="grades"> Grades (CSV export)</label>
       <label><input type="checkbox" data-key="linkedFiles"> Linked / extracted files</label>
     </div>
   </div>
@@ -107,6 +108,13 @@
       <label for="folder-prefix">Custom folder prefix</label>
       <input type="text" id="folder-prefix" placeholder="e.g. Canvas Downloads/">
       <div class="hint">Prepended to the course folder name. Leave empty for no prefix.</div>
+    </div>
+    <div class="field" style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #eee;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="incremental-mode" style="width:16px;height:16px;accent-color:#e82429;cursor:pointer;">
+        <span>Incremental mode (skip unchanged files)</span>
+      </label>
+      <div class="hint" style="margin-top:6px;">When enabled, the extension remembers which files have been downloaded for each course. On subsequent runs, only new or modified files are downloaded. Useful for archiving progressively over a semester. File tracking is stored locally on this device.</div>
     </div>
   </div>
 
