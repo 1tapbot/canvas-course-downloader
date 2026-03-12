@@ -72,12 +72,32 @@ function showToast(message, type = "info") {
 // ---------------------------------------------------------------------------
 
 const FETCH_TIMEOUT_MS = 30000;
+const MAX_RETRIES = 3;
 
 /** Fetches with an AbortController timeout. */
 function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
+/** Fetches with retry and exponential backoff for transient errors. */
+async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, options);
+      if (res.ok || (res.status < 500 && res.status !== 429)) return res;
+      if (attempt === retries) return res;
+      const delay = Math.min(1000 * 2 ** attempt, 8000);
+      console.warn(`[Canvas Downloader] ${res.status} on ${url}, retrying in ${delay}ms...`);
+      await new Promise((r) => setTimeout(r, delay));
+    } catch (err) {
+      if (attempt === retries) throw err;
+      const delay = Math.min(1000 * 2 ** attempt, 8000);
+      console.warn(`[Canvas Downloader] Fetch error on ${url}, retrying in ${delay}ms...`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
 }
 
 /** Follows Canvas pagination links to collect all results. */
@@ -87,7 +107,7 @@ async function fetchAllPages(url) {
 
   while (next) {
     try {
-      const res = await fetchWithTimeout(next, {
+      const res = await fetchWithRetry(next, {
         headers: { Accept: "application/json+canvas-string-ids" },
       });
 
@@ -144,6 +164,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
 
   const api = (path) => `${domain}/api/v1/courses/${courseId}/${path}`;
   const filesToDownload = [];
+  const seenFileIds = new Set();
 
   // --- Files & Folders -------------------------------------------------------
   log("Fetching files...");
@@ -159,6 +180,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
     if (folder && !folder.endsWith("/")) folder += "/";
     if (folder.startsWith("/")) folder = folder.slice(1);
 
+    seenFileIds.add(String(file.id));
     filesToDownload.push({ url: file.url, filename: file.display_name, path: `Files/${folder}` });
   });
 
@@ -170,14 +192,16 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
 
     for (const link of links) {
       const id = link.getAttribute("href")?.match(/\/files\/(\d+)/)?.[1];
-      if (!id) continue;
+      if (!id || seenFileIds.has(id)) continue;
 
       try {
-        const res = await fetchWithTimeout(`${domain}/api/v1/files/${id}`);
+        const res = await fetchWithRetry(`${domain}/api/v1/files/${id}`);
         if (!res.ok) continue;
         const data = await res.json();
 
-        if (!filesToDownload.some((f) => f.url === data.url)) {
+        const fileId = String(data.id || id);
+        if (!seenFileIds.has(fileId)) {
+          seenFileIds.add(fileId);
           filesToDownload.push({
             url: data.url,
             filename: data.display_name || link.textContent.trim() || `file_${id}`,
@@ -208,7 +232,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
 
   for (const meta of pages) {
     try {
-      const res = await fetchWithTimeout(`${domain}/api/v1/courses/${courseId}/pages/${meta.url}`);
+      const res = await fetchWithRetry(`${domain}/api/v1/courses/${courseId}/pages/${meta.url}`);
       if (!res.ok) continue;
       const page = await res.json();
 
@@ -228,69 +252,60 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
   log("Fetching assignments...");
   const assignments = await fetchAllPages(api("assignments?per_page=100"));
 
-  let assignmentsBody = "<ul>";
   for (const a of assignments) {
-    assignmentsBody += `<li><h2><a href="${a.html_url}">${a.name}</a></h2>`;
-    if (a.due_at) assignmentsBody += `<p><strong>Due:</strong> ${new Date(a.due_at).toLocaleString()}</p>`;
+    let body = `<h2><a href="${a.html_url}">${a.name}</a></h2>`;
+    if (a.due_at) body += `<p><strong>Due:</strong> ${new Date(a.due_at).toLocaleString()}</p>`;
     if (a.description) {
-      assignmentsBody += `<div>${a.description}</div>`;
+      body += `<div>${a.description}</div>`;
       await extractLinkedFiles(a.description, `Assignment: ${a.name}`);
     }
-    assignmentsBody += "</li><hr/>";
+    const safeName = a.name.replace(/[/\\?%*:|"<>]/g, "-").substring(0, 100);
+    filesToDownload.push({
+      url: toHtmlDataUri(a.name, body),
+      filename: `${safeName}.html`,
+      path: "Assignments/",
+    });
   }
-  assignmentsBody += "</ul>";
-
-  filesToDownload.push({
-    url: toHtmlDataUri("Assignments", assignmentsBody),
-    filename: "Assignments.html",
-    path: "",
-  });
 
   // --- Announcements ---------------------------------------------------------
   log("Fetching announcements...");
   const announcements = await fetchAllPages(api("discussion_topics?only_announcements=true&per_page=100"));
 
-  let announcementsBody = "<ul>";
   for (const a of announcements) {
-    announcementsBody += `<li><h2><a href="${a.html_url}">${a.title}</a></h2>`;
-    if (a.posted_at) announcementsBody += `<p><strong>Posted:</strong> ${new Date(a.posted_at).toLocaleString()}</p>`;
+    let body = `<h2><a href="${a.html_url}">${a.title}</a></h2>`;
+    if (a.posted_at) body += `<p><strong>Posted:</strong> ${new Date(a.posted_at).toLocaleString()}</p>`;
     if (a.message) {
-      announcementsBody += `<div>${a.message}</div>`;
+      body += `<div>${a.message}</div>`;
       await extractLinkedFiles(a.message, `Announcement: ${a.title}`);
     }
-    announcementsBody += "</li><hr/>";
+    const safeName = a.title.replace(/[/\\?%*:|"<>]/g, "-").substring(0, 100);
+    filesToDownload.push({
+      url: toHtmlDataUri(a.title, body),
+      filename: `${safeName}.html`,
+      path: "Announcements/",
+    });
   }
-  announcementsBody += "</ul>";
-
-  filesToDownload.push({
-    url: toHtmlDataUri("Announcements", announcementsBody),
-    filename: "Announcements.html",
-    path: "",
-  });
 
   // --- Discussions -----------------------------------------------------------
   log("Fetching discussions...");
   const allTopics = await fetchAllPages(api("discussion_topics?per_page=100"));
   const discussions = allTopics.filter((d) => !d.is_announcement);
 
-  let discussionsBody = "<ul>";
   for (const d of discussions) {
-    discussionsBody += `<li><h2><a href="${d.html_url}">${d.title}</a></h2>`;
-    if (d.user_name) discussionsBody += `<p><strong>Author:</strong> ${d.user_name}</p>`;
-    if (d.posted_at) discussionsBody += `<p><strong>Posted:</strong> ${new Date(d.posted_at).toLocaleString()}</p>`;
+    let body = `<h2><a href="${d.html_url}">${d.title}</a></h2>`;
+    if (d.user_name) body += `<p><strong>Author:</strong> ${d.user_name}</p>`;
+    if (d.posted_at) body += `<p><strong>Posted:</strong> ${new Date(d.posted_at).toLocaleString()}</p>`;
     if (d.message) {
-      discussionsBody += `<div>${d.message}</div>`;
+      body += `<div>${d.message}</div>`;
       await extractLinkedFiles(d.message, `Discussion: ${d.title}`);
     }
-    discussionsBody += "</li><hr/>";
+    const safeName = d.title.replace(/[/\\?%*:|"<>]/g, "-").substring(0, 100);
+    filesToDownload.push({
+      url: toHtmlDataUri(d.title, body),
+      filename: `${safeName}.html`,
+      path: "Discussions/",
+    });
   }
-  discussionsBody += "</ul>";
-
-  filesToDownload.push({
-    url: toHtmlDataUri("Discussions", discussionsBody),
-    filename: "Discussions.html",
-    path: "",
-  });
 
   // --- Modules ---------------------------------------------------------------
   log("Fetching modules...");
@@ -307,11 +322,13 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
 
       if (item.type === "File" && item.url) {
         try {
-          const res = await fetchWithTimeout(item.url);
+          const res = await fetchWithRetry(item.url);
           if (!res.ok) continue;
           const data = await res.json();
 
-          if (!filesToDownload.some((f) => f.url === data.url)) {
+          const fileId = String(data.id || "");
+          if (fileId && !seenFileIds.has(fileId)) {
+            seenFileIds.add(fileId);
             const safeModName = mod.name.replace(/[/\\?%*:|"<>]/g, "-");
             filesToDownload.push({
               url: data.url,
@@ -336,7 +353,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
   // --- Syllabus --------------------------------------------------------------
   log("Fetching syllabus...");
   try {
-    const res = await fetchWithTimeout(`${domain}/api/v1/courses/${courseId}?include[]=syllabus_body`);
+    const res = await fetchWithRetry(`${domain}/api/v1/courses/${courseId}?include[]=syllabus_body`);
     if (res.ok) {
       const data = await res.json();
       if (data.syllabus_body) {
@@ -436,6 +453,15 @@ function getOverlayStyles() {
       cursor: pointer; color: #6b7b8d; padding: 0; line-height: 1;
     }
     .cd-close-btn:hover { color: #2d3b45; }
+    .cd-search {
+      padding: 12px 24px; border-bottom: 1px solid #e5e5e5;
+    }
+    .cd-search input {
+      width: 100%; box-sizing: border-box; padding: 8px 12px;
+      border: 1px solid #ddd; border-radius: 6px; font-size: 13px;
+      font-family: inherit; outline: none;
+    }
+    .cd-search input:focus { border-color: #e82429; }
     .cd-controls {
       padding: 12px 24px; border-bottom: 1px solid #e5e5e5;
       display: flex; gap: 12px; align-items: center;
@@ -458,6 +484,17 @@ function getOverlayStyles() {
     .cd-course-item label { cursor: pointer; flex: 1; }
     .cd-course-name { font-size: 14px; font-weight: 500; color: #2d3b45; }
     .cd-course-code { font-size: 12px; color: #6b7b8d; margin-top: 2px; }
+    .cd-term-group { margin-top: 4px; }
+    .cd-term-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; cursor: pointer; user-select: none;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .cd-term-header:hover { background: #f8f8f8; }
+    .cd-term-name { font-size: 13px; font-weight: 600; color: #2d3b45; }
+    .cd-term-toggle { font-size: 12px; color: #6b7b8d; }
+    .cd-term-select { font-size: 11px; color: #e82429; cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline; }
+    .cd-term-select:hover { color: #c51f23; }
     .cd-modal-footer {
       padding: 16px 24px; border-top: 1px solid #e5e5e5;
       display: flex; justify-content: space-between; align-items: center;
@@ -501,6 +538,9 @@ async function openCourseSelector() {
         <button class="cd-close-btn" id="cd-close">&times;</button>
       </div>
       <div class="cd-loading" id="cd-loading">Loading courses...</div>
+      <div class="cd-search" id="cd-search" style="display:none">
+        <input type="text" id="cd-search-input" placeholder="Search courses by name, code, or term...">
+      </div>
       <div class="cd-controls" id="cd-controls" style="display:none">
         <button id="cd-select-all">Select All</button>
         <button id="cd-deselect-all">Deselect All</button>
@@ -523,8 +563,12 @@ async function openCourseSelector() {
 
   document.body.appendChild(overlay);
 
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
-  document.getElementById("cd-close").addEventListener("click", () => overlay.remove());
+  const closeOverlay = () => overlay.remove();
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeOverlay(); });
+  document.getElementById("cd-close").addEventListener("click", closeOverlay);
+  document.addEventListener("keydown", function escHandler(e) {
+    if (e.key === "Escape") { closeOverlay(); document.removeEventListener("keydown", escHandler); }
+  });
 
   // Fetch courses
   let courses;
@@ -541,24 +585,93 @@ async function openCourseSelector() {
   }
 
   document.getElementById("cd-loading").style.display = "none";
+  document.getElementById("cd-search").style.display = "block";
   document.getElementById("cd-controls").style.display = "flex";
   document.getElementById("cd-course-list").style.display = "block";
   document.getElementById("cd-footer").style.display = "flex";
 
   const listEl = document.getElementById("cd-course-list");
 
+  // Group courses by term, sorted by start date (most recent first)
+  const termMap = new Map();
   for (const course of courses) {
-    const term = course.term?.name || "";
-    const item = document.createElement("div");
-    item.className = "cd-course-item";
-    item.innerHTML = `
-      <input type="checkbox" id="cd-course-${course.id}" data-course-id="${course.id}" data-course-name="${course.name.replace(/"/g, "&quot;")}">
-      <label for="cd-course-${course.id}">
-        <div class="cd-course-name">${course.name}</div>
-        <div class="cd-course-code">${course.course_code || ""}${term ? " &middot; " + term : ""}</div>
-      </label>`;
-    listEl.appendChild(item);
+    const termName = course.term?.name || "Other";
+    if (!termMap.has(termName)) {
+      termMap.set(termName, { startAt: course.term?.start_at || null, courses: [] });
+    }
+    termMap.get(termName).courses.push(course);
   }
+
+  const sortedTerms = Array.from(termMap.entries()).sort(([nameA, a], [nameB, b]) => {
+    const isDefaultA = !a.startAt || nameA === "Other" || nameA.toLowerCase().includes("default");
+    const isDefaultB = !b.startAt || nameB === "Other" || nameB.toLowerCase().includes("default");
+    if (isDefaultA && !isDefaultB) return 1;
+    if (!isDefaultA && isDefaultB) return -1;
+    if (a.startAt && b.startAt) return new Date(b.startAt) - new Date(a.startAt);
+    return nameA.localeCompare(nameB);
+  });
+
+  for (const [termName, { courses: termCourses }] of sortedTerms) {
+    const group = document.createElement("div");
+    group.className = "cd-term-group";
+    group.dataset.term = termName.toLowerCase();
+
+    const header = document.createElement("div");
+    header.className = "cd-term-header";
+    header.innerHTML = `
+      <span class="cd-term-name">${termName} (${termCourses.length})</span>
+      <span style="display:flex;gap:8px;align-items:center;">
+        <button class="cd-term-select" data-term-action="toggle">Select all</button>
+        <span class="cd-term-toggle">&#9660;</span>
+      </span>`;
+    group.appendChild(header);
+
+    const courseContainer = document.createElement("div");
+    courseContainer.className = "cd-term-courses";
+
+    for (const course of termCourses) {
+      const item = document.createElement("div");
+      item.className = "cd-course-item";
+      item.dataset.searchable = `${course.name} ${course.course_code || ""} ${termName}`.toLowerCase();
+      item.innerHTML = `
+        <input type="checkbox" id="cd-course-${course.id}" data-course-id="${course.id}" data-course-name="${course.name.replace(/"/g, "&quot;")}">
+        <label for="cd-course-${course.id}">
+          <div class="cd-course-name">${course.name}</div>
+          <div class="cd-course-code">${course.course_code || ""}</div>
+        </label>`;
+      courseContainer.appendChild(item);
+    }
+    group.appendChild(courseContainer);
+    listEl.appendChild(group);
+
+    // Toggle collapse
+    header.addEventListener("click", (e) => {
+      if (e.target.classList.contains("cd-term-select")) return;
+      const isHidden = courseContainer.style.display === "none";
+      courseContainer.style.display = isHidden ? "" : "none";
+      header.querySelector(".cd-term-toggle").textContent = isHidden ? "\u25BC" : "\u25B6";
+    });
+
+    // Select all in term
+    header.querySelector(".cd-term-select").addEventListener("click", () => {
+      const cbs = courseContainer.querySelectorAll("input[type='checkbox']:not(:disabled)");
+      const allChecked = Array.from(cbs).every((cb) => cb.checked);
+      cbs.forEach((cb) => (cb.checked = !allChecked));
+      updateCount();
+    });
+  }
+
+  // Search filter
+  document.getElementById("cd-search-input").addEventListener("input", (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    listEl.querySelectorAll(".cd-course-item").forEach((item) => {
+      item.style.display = !q || item.dataset.searchable.includes(q) ? "" : "none";
+    });
+    listEl.querySelectorAll(".cd-term-group").forEach((group) => {
+      const visibleItems = group.querySelectorAll(".cd-course-item:not([style*='display: none'])");
+      group.style.display = visibleItems.length === 0 && q ? "none" : "";
+    });
+  });
 
   const updateCount = () => {
     const n = listEl.querySelectorAll("input:checked").length;
@@ -568,11 +681,11 @@ async function openCourseSelector() {
 
   listEl.addEventListener("change", updateCount);
   document.getElementById("cd-select-all").addEventListener("click", () => {
-    listEl.querySelectorAll("input").forEach((cb) => (cb.checked = true));
+    listEl.querySelectorAll("input:not(:disabled)").forEach((cb) => (cb.checked = true));
     updateCount();
   });
   document.getElementById("cd-deselect-all").addEventListener("click", () => {
-    listEl.querySelectorAll("input").forEach((cb) => (cb.checked = false));
+    listEl.querySelectorAll("input:not(:disabled)").forEach((cb) => (cb.checked = false));
     updateCount();
   });
 
