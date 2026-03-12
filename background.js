@@ -33,6 +33,19 @@ function notifyCompletion() {
   failedCount = 0;
 }
 
+// Keyboard shortcut handler
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== "download-current") return;
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    if (!tab) return;
+    chrome.tabs.sendMessage(tab.id, { action: "get_status" }, (response) => {
+      if (chrome.runtime.lastError || !response?.isCanvas) return;
+      const action = response.courseId ? "trigger_download" : "open_course_selector";
+      chrome.tabs.sendMessage(tab.id, { action });
+    });
+  });
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== "START_DOWNLOAD") return;
 

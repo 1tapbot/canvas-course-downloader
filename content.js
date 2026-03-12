@@ -9,6 +9,33 @@
  */
 
 // ---------------------------------------------------------------------------
+// Canvas Theme Detection
+// ---------------------------------------------------------------------------
+
+const FALLBACK_COLOR = "#e82429";
+
+/** Reads the institution's Canvas brand color from CSS custom properties. */
+function getCanvasBrandColor() {
+  const root = document.documentElement;
+  const style = getComputedStyle(root);
+  return (
+    style.getPropertyValue("--ic-brand-primary").trim() ||
+    style.getPropertyValue("--ic-brand-button--primary-bgd").trim() ||
+    style.getPropertyValue("--ic-brand-global-nav-bgd").trim() ||
+    FALLBACK_COLOR
+  );
+}
+
+/** Returns a darker shade of a hex color for hover states. */
+function darkenColor(hex, amount = 0.15) {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const r = Math.max(0, Math.min(255, ((num >> 16) & 0xFF) - Math.round(255 * amount)));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xFF) - Math.round(255 * amount)));
+  const b = Math.max(0, Math.min(255, (num & 0xFF) - Math.round(255 * amount)));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+// ---------------------------------------------------------------------------
 // Canvas Detection Helpers
 // ---------------------------------------------------------------------------
 
@@ -369,6 +396,45 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
     console.error("[Canvas Downloader] Syllabus error:", err);
   }
 
+  // --- Export manifest -------------------------------------------------------
+  const manifest = {
+    course: courseName,
+    courseId,
+    sourceUrl: `${domain}/courses/${courseId}`,
+    exportDate: new Date().toISOString(),
+    extensionVersion: chrome.runtime.getManifest().version,
+    counts: {
+      files: files.length,
+      pages: pages.length,
+      assignments: assignments.length,
+      announcements: announcements.length,
+      discussions: discussions.length,
+      modules: modules.length,
+      extractedFiles: filesToDownload.filter((f) => f.path === "Extracted_Files/").length,
+      total: filesToDownload.length,
+    },
+  };
+
+  filesToDownload.push({
+    url: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(manifest, null, 2))}`,
+    filename: "manifest.json",
+    path: "",
+  });
+
+  // --- Path length safety (Windows 260-char limit) -------------------------
+  const MAX_PATH = 250; // leave margin for download directory prefix
+  for (const file of filesToDownload) {
+    const safeCourse = courseName.replace(/[/\\?%*:|"<>]/g, "-");
+    const fullLen = safeCourse.length + 1 + file.path.length + file.filename.length;
+    if (fullLen > MAX_PATH) {
+      const ext = file.filename.includes(".") ? file.filename.slice(file.filename.lastIndexOf(".")) : "";
+      const maxName = MAX_PATH - safeCourse.length - 1 - file.path.length - ext.length;
+      if (maxName > 10) {
+        file.filename = file.filename.slice(0, maxName) + ext;
+      }
+    }
+  }
+
   // --- Hand off to background for downloading --------------------------------
   log(`Queuing ${filesToDownload.length} files for download...`);
 
@@ -427,6 +493,8 @@ async function downloadCurrentCourse() {
 // ---------------------------------------------------------------------------
 
 function getOverlayStyles() {
+  const brand = getCanvasBrandColor();
+  const brandHover = darkenColor(brand);
   return `
     .cd-overlay {
       position: fixed; inset: 0;
@@ -461,16 +529,16 @@ function getOverlayStyles() {
       border: 1px solid #ddd; border-radius: 6px; font-size: 13px;
       font-family: inherit; outline: none;
     }
-    .cd-search input:focus { border-color: #e82429; }
+    .cd-search input:focus { border-color: ${brand}; }
     .cd-controls {
       padding: 12px 24px; border-bottom: 1px solid #e5e5e5;
       display: flex; gap: 12px; align-items: center;
     }
     .cd-controls button {
-      background: none; border: none; color: #e82429;
+      background: none; border: none; color: ${brand};
       cursor: pointer; font-size: 13px; padding: 0; text-decoration: underline;
     }
-    .cd-controls button:hover { color: #c51f23; }
+    .cd-controls button:hover { color: ${brandHover}; }
     .cd-course-list { flex: 1; overflow-y: auto; padding: 8px 24px; }
     .cd-course-item {
       display: flex; align-items: center;
@@ -479,7 +547,7 @@ function getOverlayStyles() {
     .cd-course-item:last-child { border-bottom: none; }
     .cd-course-item input[type="checkbox"] {
       margin-right: 12px; width: 16px; height: 16px;
-      cursor: pointer; accent-color: #e82429;
+      cursor: pointer; accent-color: ${brand};
     }
     .cd-course-item label { cursor: pointer; flex: 1; }
     .cd-course-name { font-size: 14px; font-weight: 500; color: #2d3b45; }
@@ -493,22 +561,22 @@ function getOverlayStyles() {
     .cd-term-header:hover { background: #f8f8f8; }
     .cd-term-name { font-size: 13px; font-weight: 600; color: #2d3b45; }
     .cd-term-toggle { font-size: 12px; color: #6b7b8d; }
-    .cd-term-select { font-size: 11px; color: #e82429; cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline; }
-    .cd-term-select:hover { color: #c51f23; }
+    .cd-term-select { font-size: 11px; color: ${brand}; cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline; }
+    .cd-term-select:hover { color: ${brandHover}; }
     .cd-modal-footer {
       padding: 16px 24px; border-top: 1px solid #e5e5e5;
       display: flex; justify-content: space-between; align-items: center;
     }
     .cd-download-btn {
-      background: #e82429; color: #fff; border: none; border-radius: 6px;
+      background: ${brand}; color: #fff; border: none; border-radius: 6px;
       padding: 10px 24px; font-size: 14px; font-weight: 600; cursor: pointer;
     }
-    .cd-download-btn:hover { background: #c51f23; }
+    .cd-download-btn:hover { background: ${brandHover}; }
     .cd-download-btn:disabled { background: #ccc; cursor: not-allowed; }
     .cd-selected-count { font-size: 13px; color: #6b7b8d; }
     .cd-progress { padding: 16px 24px; border-top: 1px solid #e5e5e5; font-size: 13px; color: #2d3b45; }
     .cd-progress-bar-bg { background: #e5e5e5; border-radius: 4px; height: 8px; margin-top: 8px; overflow: hidden; }
-    .cd-progress-bar { background: #e82429; height: 100%; border-radius: 4px; transition: width 0.3s; width: 0%; }
+    .cd-progress-bar { background: ${brand}; height: 100%; border-radius: 4px; transition: width 0.3s; width: 0%; }
     .cd-progress-status { margin-top: 6px; font-size: 12px; color: #6b7b8d; }
     .cd-loading { padding: 40px 24px; text-align: center; color: #6b7b8d; font-size: 14px; }
     .cd-github-footer {
@@ -516,7 +584,7 @@ function getOverlayStyles() {
       font-size: 11px; color: #999; line-height: 1.5;
       border-top: 1px solid #e5e5e5;
     }
-    .cd-github-footer a { color: #e82429; text-decoration: none; }
+    .cd-github-footer a { color: ${brand}; text-decoration: none; }
     .cd-github-footer a:hover { text-decoration: underline; }
   `;
 }
@@ -747,14 +815,17 @@ function injectButton() {
     const anchor = document.getElementById("breadcrumbs") || document.querySelector(".ic-app-nav-toggle-and-crumbs");
     if (!anchor) return;
 
+    const brand = getCanvasBrandColor();
     const btn = document.createElement("button");
     btn.id = "canvas-downloader-btn";
     btn.textContent = "Download Course Content";
     btn.style.cssText = `
-      background: #e82429; color: #fff; border: none; border-radius: 6px;
+      background: ${brand}; color: #fff; border: none; border-radius: 6px;
       padding: 6px 14px; font-size: 14px; cursor: pointer;
       margin-left: 15px; font-family: inherit; font-weight: 600;
     `;
+    btn.addEventListener("mouseenter", () => (btn.style.background = darkenColor(brand)));
+    btn.addEventListener("mouseleave", () => (btn.style.background = brand));
     btn.addEventListener("click", downloadCurrentCourse);
     anchor.appendChild(btn);
   } else {
@@ -770,14 +841,17 @@ function injectButton() {
       document.getElementById("content");
     if (!anchor) return;
 
+    const brand = getCanvasBrandColor();
     const btn = document.createElement("button");
     btn.id = "canvas-downloader-home-btn";
     btn.textContent = "Download Courses";
     btn.style.cssText = `
-      background: #e82429; color: #fff; border: none; border-radius: 6px;
+      background: ${brand}; color: #fff; border: none; border-radius: 6px;
       padding: 8px 16px; font-size: 14px; font-weight: 600;
       cursor: pointer; margin-left: 15px; margin-bottom: 10px; font-family: inherit;
     `;
+    btn.addEventListener("mouseenter", () => (btn.style.background = darkenColor(brand)));
+    btn.addEventListener("mouseleave", () => (btn.style.background = brand));
     btn.addEventListener("click", openCourseSelector);
     anchor.appendChild(btn);
   }

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Canvas Course Downloader",
   "description": "One-click bulk download of all files, assignments, modules, pages, syllabus, discussions, and announcements from Canvas LMS courses.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "canvas-course-downloader@jasp-nerd",
@@ -44,5 +44,14 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Canvas Course Downloader"
+  },
+  "commands": {
+    "download-current": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+D",
+        "mac": "Command+Shift+D"
+      },
+      "description": "Download current course or open course selector"
+    }
   }
 }
