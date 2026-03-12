@@ -40,8 +40,45 @@ function getCourseName() {
 }
 
 // ---------------------------------------------------------------------------
+// Toast Notifications
+// ---------------------------------------------------------------------------
+
+function showToast(message, type = "info") {
+  const existing = document.getElementById("cd-toast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "cd-toast";
+  const colors = { info: "#2d3b45", success: "#1a7f37", error: "#cf222e" };
+  toast.style.cssText = `
+    position: fixed; bottom: 24px; right: 24px; z-index: 100001;
+    background: ${colors[type] || colors.info}; color: #fff;
+    padding: 12px 20px; border-radius: 8px; font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 360px;
+    opacity: 0; transition: opacity 0.3s;
+  `;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => (toast.style.opacity = "1"));
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+// ---------------------------------------------------------------------------
 // Canvas API Helpers
 // ---------------------------------------------------------------------------
+
+const FETCH_TIMEOUT_MS = 30000;
+
+/** Fetches with an AbortController timeout. */
+function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
+}
 
 /** Follows Canvas pagination links to collect all results. */
 async function fetchAllPages(url) {
@@ -50,7 +87,7 @@ async function fetchAllPages(url) {
 
   while (next) {
     try {
-      const res = await fetch(next, {
+      const res = await fetchWithTimeout(next, {
         headers: { Accept: "application/json+canvas-string-ids" },
       });
 
@@ -66,7 +103,11 @@ async function fetchAllPages(url) {
       const nextLink = link?.split(",").find((s) => s.includes('rel="next"'));
       next = nextLink ? nextLink.match(/<([^>]+)>/)?.[1] ?? null : null;
     } catch (err) {
-      console.error("[Canvas Downloader] API error:", err);
+      if (err.name === "AbortError") {
+        console.warn(`[Canvas Downloader] Request timed out: ${next}`);
+      } else {
+        console.error("[Canvas Downloader] API error:", err);
+      }
       break;
     }
   }
@@ -132,7 +173,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
       if (!id) continue;
 
       try {
-        const res = await fetch(`${domain}/api/v1/files/${id}`);
+        const res = await fetchWithTimeout(`${domain}/api/v1/files/${id}`);
         if (!res.ok) continue;
         const data = await res.json();
 
@@ -149,9 +190,15 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
     }
   }
 
+  /** Strips script tags from HTML to prevent XSS when opening exported files. */
+  function sanitizeHtml(html) {
+    return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  }
+
   /** Wraps content in a minimal HTML page and returns a data-URI. */
   function toHtmlDataUri(title, body) {
-    const html = `<html><head><title>${title}</title></head><body><h1>${title}</h1>${body}</body></html>`;
+    const safeBody = sanitizeHtml(body);
+    const html = `<html><head><title>${title}</title></head><body><h1>${title}</h1>${safeBody}</body></html>`;
     return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
   }
 
@@ -161,7 +208,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
 
   for (const meta of pages) {
     try {
-      const res = await fetch(`${domain}/api/v1/courses/${courseId}/pages/${meta.url}`);
+      const res = await fetchWithTimeout(`${domain}/api/v1/courses/${courseId}/pages/${meta.url}`);
       if (!res.ok) continue;
       const page = await res.json();
 
@@ -260,7 +307,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
 
       if (item.type === "File" && item.url) {
         try {
-          const res = await fetch(item.url);
+          const res = await fetchWithTimeout(item.url);
           if (!res.ok) continue;
           const data = await res.json();
 
@@ -289,7 +336,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
   // --- Syllabus --------------------------------------------------------------
   log("Fetching syllabus...");
   try {
-    const res = await fetch(`${domain}/api/v1/courses/${courseId}?include[]=syllabus_body`);
+    const res = await fetchWithTimeout(`${domain}/api/v1/courses/${courseId}?include[]=syllabus_body`);
     if (res.ok) {
       const data = await res.json();
       if (data.syllabus_body) {
@@ -329,7 +376,7 @@ async function downloadCourse(courseId, courseName, domain, onProgress) {
 async function downloadCurrentCourse() {
   const courseId = getCourseId();
   if (!courseId) {
-    alert("Could not determine course ID. Navigate to a Canvas course page.");
+    showToast("Could not determine course ID. Navigate to a Canvas course page.", "error");
     return;
   }
 
@@ -353,7 +400,7 @@ async function downloadCurrentCourse() {
     }
   } catch (err) {
     console.error("[Canvas Downloader] Error:", err);
-    alert("An error occurred. Check the developer console for details.");
+    showToast("An error occurred. Check the developer console for details.", "error");
     if (btn) { btn.textContent = originalText; btn.disabled = false; }
   }
 }

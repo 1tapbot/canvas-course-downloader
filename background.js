@@ -7,6 +7,31 @@
 
 const downloadQueue = [];
 let isProcessing = false;
+let totalQueued = 0;
+let completedCount = 0;
+let failedCount = 0;
+
+function updateBadge() {
+  const remaining = downloadQueue.length + (isProcessing ? 1 : 0);
+  if (remaining > 0) {
+    chrome.action.setBadgeText({ text: String(remaining) });
+    chrome.action.setBadgeBackgroundColor({ color: "#e82429" });
+  } else {
+    chrome.action.setBadgeText({ text: "" });
+  }
+}
+
+function notifyCompletion() {
+  chrome.notifications.create("download-complete", {
+    type: "basic",
+    iconUrl: "icons/icon-128.png",
+    title: "Canvas Course Downloader",
+    message: `Downloads finished: ${completedCount} succeeded${failedCount > 0 ? `, ${failedCount} failed` : ""}.`,
+  });
+  totalQueued = 0;
+  completedCount = 0;
+  failedCount = 0;
+}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== "START_DOWNLOAD") return;
@@ -20,6 +45,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }));
 
   downloadQueue.push(...items);
+  totalQueued += items.length;
+  updateBadge();
 
   if (!isProcessing) processQueue();
 
@@ -29,6 +56,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 function processQueue() {
   if (downloadQueue.length === 0) {
     isProcessing = false;
+    updateBadge();
+    if (totalQueued > 0) notifyCompletion();
     return;
   }
 
@@ -40,11 +69,15 @@ function processQueue() {
   if (fullPath.startsWith("/")) fullPath = fullPath.substring(1);
 
   chrome.downloads.download(
-    { url: item.url, filename: fullPath, conflictAction: "overwrite" },
+    { url: item.url, filename: fullPath, conflictAction: "uniquify" },
     (downloadId) => {
       if (chrome.runtime.lastError) {
         console.error("[Canvas Downloader] Download failed:", chrome.runtime.lastError.message, fullPath);
+        failedCount++;
+      } else {
+        completedCount++;
       }
+      updateBadge();
       // Small delay between downloads to avoid overwhelming the browser
       setTimeout(processQueue, downloadId ? 250 : 500);
     }
