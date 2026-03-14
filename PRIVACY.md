@@ -1,10 +1,10 @@
 # Privacy Policy — Canvas Course Downloader
 
-**Last updated:** March 7, 2026
+**Last updated:** March 14, 2026
 
 ## Overview
 
-Canvas Course Downloader is a free, open-source browser extension. Your privacy is important to us. This policy explains what data the extension accesses and how it is handled.
+Canvas Course Downloader is a free, open-source browser extension. This policy explains what data the extension accesses and how it's handled.
 
 ## Data Collection
 
@@ -23,8 +23,10 @@ The extension requests the following browser permissions:
 
 | Permission | Why it's needed |
 |---|---|
+| `activeTab` | To communicate with the content script on the current tab |
 | `downloads` | To save course files to your computer |
-| `storage` | Reserved for future user preferences (not currently used) |
+| `notifications` | To notify you when a download batch finishes |
+| `storage` | To save your settings and track which files have been downloaded in incremental mode |
 | Host permissions (`https://*/*`) | Canvas LMS can be hosted on any domain, so the extension needs to detect Canvas on any HTTPS page |
 
 ## Third-Party Services

@@ -5,6 +5,15 @@ All notable changes to Canvas Course Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1]
+
+### Changed
+- Rewrote README with accurate feature descriptions pulled from actual source code
+- Updated CONTRIBUTING.md to reflect modular architecture (was still describing the old single-file structure)
+- Fixed PRIVACY.md permissions table: `storage` now correctly described as active, added missing `activeTab` and `notifications` permissions
+- Replaced old screenshots with up-to-date course selector, download progress, and settings images
+- Removed outdated bulk-download-result and old course-selector screenshots
+
 ## [2.0.0]
 
 ### Changed

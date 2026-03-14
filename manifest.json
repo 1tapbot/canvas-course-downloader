@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Canvas Course Downloader",
-  "description": "One-click bulk download of all files, assignments, modules, pages, syllabus, discussions, and announcements from Canvas LMS courses.",
+  "description": "Bulk-download Canvas LMS course files, pages, assignments, grades, and more into organized folders.",
   "version": "2.0.0",
   "browser_specific_settings": {
     "gecko": {

@@ -5,18 +5,25 @@ Thanks for your interest in contributing! Here's how to get started.
 ## Getting Started
 
 1. Fork and clone the repository
-2. Load the extension in Chrome via `chrome://extensions` > Developer mode > Load unpacked
+2. Load the extension in your browser (`chrome://extensions` > Developer mode > Load unpacked)
 3. Make your changes and test on a Canvas LMS site
 
 ## Development
 
-The extension is pure JavaScript with no build step or dependencies. Just edit the files and reload the extension in Chrome.
+The extension is plain JavaScript with no build step. Edit the files, reload the extension, and refresh your Canvas page.
 
-**Key files:**
+The content scripts are loaded in order and share a global scope:
 
-- `content.js` — Main logic: Canvas detection, API calls, download orchestration, and the course selector UI
+- `helpers.js` — Pure utility functions (sanitization, parsing, color math)
+- `detector.js` — Canvas page and course detection
+- `canvas-api.js` — Canvas REST API communication with retry and pagination
+- `ui.js` — All UI components (buttons, toasts, progress panel, course selector overlay)
+- `downloader.js` — Download orchestration, ZIP bundling, settings management
+- `content.js` — Entry point, SPA navigation handling, message routing
 - `background.js` — Service worker that processes the download queue
-- `popup.js` / `popup.html` — The small popup shown when you click the extension icon
+- `popup.js` / `options.js` — Extension popup and settings page
+
+Unit tests for the helper functions are in `tests/test-helpers.html` (open it in a browser to run).
 
 ## Pull Requests
 
@@ -27,7 +34,7 @@ The extension is pure JavaScript with no build step or dependencies. Just edit t
 ## Reporting Issues
 
 When reporting bugs, please include:
-- Your Chrome version
+- Your browser and version
 - The Canvas instance URL (or just whether it's Instructure-hosted or self-hosted)
 - Steps to reproduce the issue
 - Any errors from the browser console (`F12` > Console tab)
