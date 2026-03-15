@@ -9,14 +9,27 @@
 // Canvas Detection Helpers
 // ---------------------------------------------------------------------------
 
-/** Mount-point selectors used for Canvas detection and button injection, ordered by reliability. */
-const CANVAS_SELECTORS = [
-  "#application",
-  ".ic-app",
-  "#wrapper",
-  "#main",
-  'meta[name="csrf-token"]',
+/**
+ * Canvas-specific DOM signals used for detection.
+ * Each must be unlikely to appear on non-Canvas sites.
+ * We require at least 2 to match to avoid false positives.
+ */
+const CANVAS_SIGNALS = [
+  () => document.querySelector(".ic-app") !== null,
+  () => document.querySelector('link[href*="brandable_css"]') !== null,
+  () => document.querySelector('meta[name="apple-itunes-app"][content*="480883488"]') !== null,
+  () => document.querySelector(".ic-app-nav-toggle-and-crumbs") !== null,
+  () => {
+    const scripts = document.querySelectorAll("script:not([src])");
+    for (const s of scripts) {
+      if (s.textContent.includes("DOMAIN_ROOT_ACCOUNT_ID")) return true;
+    }
+    return false;
+  },
 ];
+
+/** Minimum number of Canvas-specific signals required for detection on non-Instructure domains. */
+const CANVAS_SIGNAL_THRESHOLD = 2;
 
 /** Breadcrumb / header selectors for button injection, tried in order. */
 const MOUNT_SELECTORS = [
@@ -37,7 +50,12 @@ const DASHBOARD_SELECTORS = [
 
 function isCanvas() {
   if (window.location.hostname.includes("instructure.com")) return true;
-  return CANVAS_SELECTORS.some((sel) => document.querySelector(sel) !== null);
+  let hits = 0;
+  for (const signal of CANVAS_SIGNALS) {
+    if (signal()) hits++;
+    if (hits >= CANVAS_SIGNAL_THRESHOLD) return true;
+  }
+  return false;
 }
 
 function getCourseId() {

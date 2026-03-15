@@ -5,6 +5,15 @@ All notable changes to Canvas Course Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3]
+
+### Added
+- AI use case in README: feed downloaded materials into NotebookLM, AI agents, or knowledge bases
+
+### Changed
+- Improved Canvas detection for self-hosted instances: replaced generic DOM selectors with Canvas-specific signals and a 2-of-N threshold to reduce false positives
+- Bumped manifest version to 2.0.3
+
 ## [2.0.2]
 
 ### Added

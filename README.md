@@ -18,6 +18,8 @@ A browser extension that bulk-downloads your Canvas LMS courses into organized f
 
 Canvas courses can disappear after a semester ends. Downloading files one at a time is tedious when you have hundreds across multiple courses, and existing tools all need API tokens or Python scripts. This extension uses your existing session cookies, so there's nothing to configure.
 
+Having a local copy of your course materials also means you can feed them into AI tools — load everything into NotebookLM for study sessions, use an AI agent to help you review or summarize readings, or build a searchable knowledge base from an entire semester's worth of content.
+
 ## Features
 
 - Download everything from a single course, or select multiple courses from your dashboard
